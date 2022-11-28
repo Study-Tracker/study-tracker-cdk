@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+### Study Tracker dependencies
+#export ST_VERSION="0.7.2"
+export ST_VERSION="latest"
+
+### Study Tracker user configuration
+# This is is used to create an admin user account in Study Tracker on initialization.
+# Required
+export ADMIN_EMAIL="person@email.com"
+export ADMIN_PASSWORD="thisismypassword"
+
+### Egnyte
+# Enables integration with Egnyte. Provide your tenant name (for example, if your Egnyte URL is
+# https://myorg.egnyte.com then your tenant name will be 'myorg'. The API token can be acquired
+# by logging into your Egnyte developer portal and creating a new application integration.
+# Optional
+export EGNYTE_TENANT_NAME="example"
+export EGNYTE_API_TOKEN="xxxxxx"
+export EGNYTE_ROOT_FOLDER="Shared/StudyTracker/"
+
+### Benchling
+# Enables integration with Benchling. Provide your tenant name (for example, if your Benchling URL is
+# https://myorg.benchling.com then your tenant name will be 'myorg'. The Client ID and secret can be
+# acquired by registering a new 'App' in your tenant.
+# Optional
+export BENCHLING_TENANT_NAME="example"
+export BENCHLING_CLIENT_ID="xxxxxx"
+export BENCHLING_CLIENT_SECRET="xxxxxx"
+
+### AWS Environment
+# Provide the VPC ID, account #, and region for your deployment. Provide subnet IDs for your EC2 and
+# RDS service deployments.
+# Required
+export VPC_ID="vpc-xxxxx"
+export AWS_ACCOUNT_ID="1234567890"
+export AWS_REGION="us-east-1"
+export SUBNET_IDS="subnet-xxxxxxx:us-east-1a,subnet-xxxxxxx:us-east-1b"
+
+### EC2
+# Provide the name of the existing key pair that will be used to grant SSH access to your EC2 instance
+# Required
+export EC2_SSH_KEY_NAME="MY_KEY"
+
+### Elasticsearch
+# Provide the subnet ID to be used to deploy your Elasticsearch instance
+# Required
+export ES_SUBNET_ID="subnet-xxxxxxxx"
