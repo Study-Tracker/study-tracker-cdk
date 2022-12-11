@@ -42,15 +42,16 @@ if [ ! -f "configs/$ST_ENV.env" ]; then
 fi
 
 # Load the environment variables
-source default_variables.sh
+source configs/default_variables.sh
 if [ $PRODUCTION_MODE -eq 1 ]; then
     echo "Running in production mode"
-    source production_defaults.sh
+    source configs/production_defaults.sh
 else
     echo "Running in development mode"
-    source development_defaults.sh
+    source configs/development_defaults.sh
 fi
 source configs/${ST_ENV}.env
 
 # Run the CDK scripts
-cdk deploy --app "python app.py" --all --require-approval never
+cdk deploy --app "python secrets_app.py" --all --require-approval never
+cdk deploy --app "python study_tracker_app.py" --all --require-approval never

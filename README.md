@@ -21,7 +21,7 @@ below.
     ```bash
    virtualenv -p python3 venv
    source venv/bin/activate
-   python -m pip install -r requirements.txt
+   ./venv/bin/python -m pip install -r requirements.txt
     ```
 3. Deploy the stack with the `deploy.sh` script, passing the environment reference as a single argument. For example, build Study Tracker with the configuration defined in `development.env`, run the command:
 
