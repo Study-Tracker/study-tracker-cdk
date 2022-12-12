@@ -1,7 +1,6 @@
 import aws_cdk
 from aws_cdk import (
     Stack,
-    SecretValue,
     Duration,
     CfnOutput,
     aws_events as events,
@@ -9,29 +8,107 @@ from aws_cdk import (
     aws_iam as iam,
     aws_rds as rds,
     aws_ec2 as ec2,
-    aws_opensearchservice as es
+    aws_opensearchservice as es,
+    aws_secretsmanager as sm
 )
 from constructs import Construct
 import os
-from cdk_templates.secrets_stack import SecretUtils
-import cdk_templates.secrets_stack as secrets_stack
+
+application_secret_name = "study-tracker-application-secret-"
+ssl_secret_name = "study-tracker-ssl-secret-"
+saml_secret_name = "study-tracker-saml-secret-"
+db_root_secret_name = "study-tracker-database-root-secret-"
+db_user_secret_name = "study-tracker-database-user-secret-"
+elasticsearch_secret_name = "study-tracker-elasticsearch-secret-"
 
 
 class StudyTrackerCdkStack(Stack):
 
-    def __init__(self, scope: Construct, construct_id: str, secret_utils: SecretUtils, **kwargs) -> None:
+    def __init__(
+            self,
+            scope: Construct,
+            construct_id: str,
+            **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         stage_name = os.environ.get("ST_ENV")
         production_mode = bool(os.environ.get("PRODUCTION_MODE", "False"))
 
         ### Secrets
-        db_root_secret = secret_utils.get_secret_json(secrets_stack.db_root_secret_name + stage_name)
-        db_user_secret = secret_utils.get_secret_json(secrets_stack.db_user_secret_name + stage_name)
-        es_secret = secret_utils.get_secret_json(secrets_stack.elasticsearch_secret_name + stage_name)
-        saml_secret = secret_utils.get_secret_string(secrets_stack.saml_secret_name + stage_name)
-        ssl_secret = secret_utils.get_secret_string(secrets_stack.ssl_secret_name + stage_name)
-        application_secret = secret_utils.get_secret_string(secrets_stack.application_secret_name + stage_name)
+        stack = StudyTrackerCdkStack.of(self)
+
+        application_secret = sm.Secret(self, application_secret_name + stage_name,
+                                            description="Encryption key for Study Tracker database",
+                                            secret_name=application_secret_name + stage_name,
+                                            generate_secret_string=sm.SecretStringGenerator(
+                                                password_length=24,
+                                                exclude_characters="\"'`/\\%$()[]{}<>;|!",
+                                            ))
+
+        ssl_secret = sm.Secret(self, ssl_secret_name + stage_name,
+                                    description="Study Tracker SSL keystore password",
+                                    secret_name=ssl_secret_name + stage_name,
+                                    generate_secret_string=sm.SecretStringGenerator(
+                                        exclude_characters="\"'`/\\%$()[]{}<>;|!",
+                                    ))
+
+        saml_secret = sm.Secret(self, saml_secret_name + stage_name,
+                                     description="Study Tracker SAML keystore password",
+                                     secret_name=saml_secret_name + stage_name,
+                                     generate_secret_string=sm.SecretStringGenerator(
+                                         exclude_characters="\"'`/\\%$()[]{}<>;|!",
+                                     ))
+
+        db_root_secret = sm.Secret(self, db_root_secret_name + stage_name,
+                                        description="Study Tracker PostgreSQL root user credentials",
+                                        secret_name=db_root_secret_name + stage_name,
+                                        generate_secret_string=sm.SecretStringGenerator(
+                                            password_length=24,
+                                            exclude_characters="\"'`/\\%$()[]{}<>;|!",
+                                            include_space=False,
+                                            require_each_included_type=True,
+                                            generate_string_key="password",
+                                            secret_string_template=stack.to_json_string({
+                                                "username": "postgres",
+                                                "dbname": "postgres",
+                                                "host": "REPLACE_LATER",
+                                                "port": "5432"
+                                            })
+                                        ))
+
+        db_user_secret = sm.Secret(self, db_user_secret_name + stage_name,
+                                        description="Study Tracker PostgreSQL database user credentials",
+                                        secret_name=db_user_secret_name + stage_name,
+                                        generate_secret_string=sm.SecretStringGenerator(
+                                            password_length=24,
+                                            exclude_characters="\"'`/\\%$()[]{}<>;|!",
+                                            require_each_included_type=True,
+                                            include_space=False,
+                                            generate_string_key="password",
+                                            secret_string_template=stack.to_json_string({
+                                                "username": "studytracker",
+                                                "dbname": "study-tracker",
+                                                "host": "REPLACE_LATER",
+                                                "port": "5432"
+                                            })
+                                        ))
+
+        elasticsearch_secret = sm.Secret(self, elasticsearch_secret_name + stage_name,
+                                              description="Study Tracker Elasticsearch database credentials",
+                                              secret_name=elasticsearch_secret_name + stage_name,
+                                              generate_secret_string=sm.SecretStringGenerator(
+                                                  password_length=24,
+                                                  exclude_characters="\"'`/\\%$()[]{}<>;|!",
+                                                  include_space=False,
+                                                  generate_string_key="password",
+                                                  require_each_included_type=True,
+                                                  secret_string_template=stack.to_json_string({
+                                                      "username": "studytracker",
+                                                      "host": "REPLACE_LATER",
+                                                      "port": "443"
+                                                  })
+                                              ))
 
         ### VPC
         vpc = ec2.Vpc.from_lookup(self, "VPC", vpc_id=os.environ.get("VPC_ID"))
@@ -61,7 +138,7 @@ class StudyTrackerCdkStack(Stack):
         rds_security_group.add_ingress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(443))
         rds_security_group.add_ingress_rule(ec2.Peer.any_ipv6(), ec2.Port.tcp(443))
 
-        database = rds.DatabaseInstance(
+        rds_database = rds.DatabaseInstance(
             self,
             "study-tracker-cdk-rds-instance-" + stage_name,
             database_name="StudyTrackerCdkRdsDatabase" + stage_name,
@@ -72,10 +149,7 @@ class StudyTrackerCdkStack(Stack):
             security_groups=[rds_security_group],
             vpc=vpc,
             port=5432,
-            credentials=rds.Credentials.from_password(
-                username=db_root_secret["username"],
-                password=SecretValue(db_root_secret["password"])
-            ),
+            credentials=rds.Credentials.from_secret(db_root_secret),
             removal_policy=aws_cdk.RemovalPolicy.DESTROY,
             deletion_protection=production_mode,
             multi_az=False,  # true for redundancy
@@ -111,8 +185,8 @@ class StudyTrackerCdkStack(Stack):
             ),
             ebs=es.EbsOptions(volume_size=20),
             fine_grained_access_control=es.AdvancedSecurityOptions(
-                master_user_name=es_secret["username"],
-                master_user_password=SecretValue(es_secret["password"])
+                master_user_name="studytracker",
+                master_user_password=elasticsearch_secret.secret_value
             ),
             node_to_node_encryption=True,
             enforce_https=True,
@@ -182,31 +256,42 @@ class StudyTrackerCdkStack(Stack):
         # Instance
         # Set environment parameters
         ec2_instance_user_data = ec2.UserData.for_linux()
-        ec2_instance_user_data.add_commands("export ST_APP_SECRET=" + application_secret)
+        ec2_instance_user_data.add_commands("export APPLICATION_SECRET_NAME=" + application_secret.secret_name)
+        ec2_instance_user_data.add_commands("export SSL_SECRET_NAME=" + ssl_secret.secret_name)
+        ec2_instance_user_data.add_commands("export SAML_SECRET_NAME=" + saml_secret.secret_name)
+        ec2_instance_user_data.add_commands("export DB_ROOT_SECRET_NAME=" + db_root_secret.secret_name)
+        ec2_instance_user_data.add_commands("export DB_USER_SECRET_NAME=" + db_user_secret.secret_name)
+        ec2_instance_user_data.add_commands("export ELASTICSEARCH_SECRET_NAME=" + elasticsearch_secret.secret_name)
+
+        # ec2_instance_user_data.add_commands("export ST_APP_SECRET=" + application_secret)
         ec2_instance_user_data.add_commands("export ST_ADMIN_EMAIL=" + os.environ.get("ADMIN_EMAIL"))
         ec2_instance_user_data.add_commands("export ST_ADMIN_PASSWORD=" + os.environ.get("ADMIN_PASSWORD"))
         ec2_instance_user_data.add_commands("export ST_VERSION=" + os.environ.get("ST_VERSION"))
         ec2_instance_user_data.add_commands("export JDK_VERSION=" + os.environ.get("JDK_VERSION", "11"))
 
-        ec2_instance_user_data.add_commands("export DB_HOST=" + database.instance_endpoint.hostname)
-        ec2_instance_user_data.add_commands("export DB_PORT=" + str(database.instance_endpoint.port))
-        ec2_instance_user_data.add_commands("export DB_ROOT_USER=" + db_root_secret["username"])
-        ec2_instance_user_data.add_commands("export DB_ROOT_PASSWORD=" + db_root_secret["password"])
-        ec2_instance_user_data.add_commands("export DB_PASSWORD=" + db_user_secret["password"])
+        ec2_instance_user_data.add_commands("export DB_HOST=" + rds_database.instance_endpoint.hostname)
+        ec2_instance_user_data.add_commands("export DB_PORT=" + str(rds_database.instance_endpoint.port))
+        # ec2_instance_user_data.add_commands("export DB_ROOT_USER=" + db_root_secret["username"])
+        # ec2_instance_user_data.add_commands("export DB_ROOT_PASSWORD=" + db_root_secret["password"])
+        # ec2_instance_user_data.add_commands("export DB_PASSWORD=" + db_user_secret["password"])
 
         ec2_instance_user_data.add_commands("export ELASTICSEARCH_HOST=" + es_domain.domain_endpoint)
         ec2_instance_user_data.add_commands("export ELASTICSEARCH_PORT=443")
-        ec2_instance_user_data.add_commands("export ELASTICSEARCH_USERNAME=" + es_secret["username"])
-        ec2_instance_user_data.add_commands("export ELASTICSEARCH_PASSWORD=" + es_secret["password"])
+        # ec2_instance_user_data.add_commands("export ELASTICSEARCH_USERNAME=" + es_secret["username"])
+        # ec2_instance_user_data.add_commands("export ELASTICSEARCH_PASSWORD=" + es_secret["password"])
 
-        ec2_instance_user_data.add_commands("export SSL_KEYSTORE_PASSWORD=" + ssl_secret)
-        ec2_instance_user_data.add_commands("export SAML_KEYSTORE_PASSWORD=" + saml_secret)
+        ec2_instance_user_data.add_commands("export EVENTBRIDGE_BUS_NAME=" + event_bus.event_bus_name)
 
-        ec2_instance_user_data.add_commands("export EGNYTE_TENANT=" + os.environ.get("EGNYTE_TENANT_NAME"))
+        # ec2_instance_user_data.add_commands("export SSL_KEYSTORE_PASSWORD=" + ssl_secret)
+        # ec2_instance_user_data.add_commands("export SAML_KEYSTORE_PASSWORD=" + saml_secret)
+
+        ec2_instance_user_data.add_commands("export EGNYTE_TENANT_NAME=" + os.environ.get("EGNYTE_TENANT_NAME"))
         ec2_instance_user_data.add_commands("export EGNYTE_API_TOKEN=" + os.environ.get("EGNYTE_API_TOKEN"))
         ec2_instance_user_data.add_commands("export EGNYTE_ROOT_FOLDER=" + os.environ.get("EGNYTE_ROOT_FOLDER"))
 
-        ec2_instance_user_data.add_commands("export BENCHLING_TENANT=" + os.environ.get("BENCHLING_TENANT_NAME"))
+        ec2_instance_user_data.add_commands("export BENCHLING_TENANT_NAME=" + os.environ.get("BENCHLING_TENANT_NAME"))
+        ec2_instance_user_data.add_commands("export BENCHLING_CLIENT_ID=" + os.environ.get("BENCHLING_CLIENT_ID"))
+        ec2_instance_user_data.add_commands("export BENCHLING_CLIENT_SECRET=" + os.environ.get("BENCHLING_CLIENT_SECRET"))
 
         ec2_instance_user_data.add_commands("export AWS_REGION=" + aws_cdk.Stack.of(self).region)
 
@@ -234,13 +319,19 @@ class StudyTrackerCdkStack(Stack):
         event_bus.grant_put_events_to(ec2_server)
         bucket.grant_read_write(ec2_server)
         es_domain.grant_read_write(ec2_server)
+        db_root_secret.grant_read(ec2_server)
+        db_user_secret.grant_read(ec2_server)
+        elasticsearch_secret.grant_read(ec2_server)
+        ssl_secret.grant_read(ec2_server)
+        saml_secret.grant_read(ec2_server)
+        application_secret.grant_read(ec2_server)
 
         # Update secret values
-        secret_utils.update_secret(secrets_stack.db_root_secret_name + stage_name, database.instance_endpoint.hostname, "host")
-        secret_utils.update_secret(secrets_stack.db_user_secret_name + stage_name, database.instance_endpoint.hostname, "host")
-        secret_utils.update_secret(secrets_stack.elasticsearch_secret_name + stage_name, es_domain.domain_endpoint, "host")
+        # secret_utils.update_secret(secrets_stack.db_root_secret_name + stage_name, database.instance_endpoint.hostname, "host")
+        # secret_utils.update_secret(secrets_stack.db_user_secret_name + stage_name, database.instance_endpoint.hostname, "host")
+        # secret_utils.update_secret(secrets_stack.elasticsearch_secret_name + stage_name, es_domain.domain_endpoint, "host")
 
         ### Print output
         CfnOutput(self, "EC2-private-IP", value=ec2_server.instance_private_ip)
-        CfnOutput(self, "Database-Host", value=database.instance_endpoint.hostname)
+        CfnOutput(self, "Database-Host", value=rds_database.instance_endpoint.hostname)
         CfnOutput(self, "ElasticSearch-Host", value=es_domain.domain_endpoint)

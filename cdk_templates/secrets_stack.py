@@ -1,11 +1,12 @@
+import json
+import os
+
 import boto3
 from aws_cdk import (
-    Stack,
+    NestedStack,
     aws_secretsmanager as sm
 )
 from constructs import Construct
-import os
-import json
 
 application_secret_name = "study-tracker-application-secret-"
 ssl_secret_name = "study-tracker-ssl-secret-"
@@ -14,7 +15,8 @@ db_root_secret_name = "study-tracker-database-root-secret-"
 db_user_secret_name = "study-tracker-database-user-secret-"
 elasticsearch_secret_name = "study-tracker-elasticsearch-secret-"
 
-class StudyTrackerSecretsStack(Stack):
+
+class StudyTrackerSecretsStack(NestedStack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -22,78 +24,77 @@ class StudyTrackerSecretsStack(Stack):
         stack = StudyTrackerSecretsStack.of(self)
         stage_name = os.environ.get("ST_ENV")
 
-        sm.Secret(self, application_secret_name + stage_name,
-                   description="Encryption key for Study Tracker database",
-                   secret_name=application_secret_name + stage_name,
-                   generate_secret_string=sm.SecretStringGenerator(
-                       password_length=24,
-                       exclude_characters="\"'`/\\%$()[]{}<>;|",
-                   ))
+        self.application_secret = sm.Secret(self, application_secret_name + stage_name,
+                                            description="Encryption key for Study Tracker database",
+                                            secret_name=application_secret_name + stage_name,
+                                            generate_secret_string=sm.SecretStringGenerator(
+                                                password_length=24,
+                                                exclude_characters="\"'`/\\%$()[]{}<>;|",
+                                            ))
 
-        sm.Secret(self, ssl_secret_name + stage_name,
-                   description="Study Tracker SSL keystore password",
-                   secret_name=ssl_secret_name + stage_name,
-                  generate_secret_string=sm.SecretStringGenerator(
-                      exclude_characters="\"'`/\\%$()[]{}<>;|",
-                  ))
+        self.ssl_secret = sm.Secret(self, ssl_secret_name + stage_name,
+                                    description="Study Tracker SSL keystore password",
+                                    secret_name=ssl_secret_name + stage_name,
+                                    generate_secret_string=sm.SecretStringGenerator(
+                                        exclude_characters="\"'`/\\%$()[]{}<>;|",
+                                    ))
 
+        self.saml_secret = sm.Secret(self, saml_secret_name + stage_name,
+                                     description="Study Tracker SAML keystore password",
+                                     secret_name=saml_secret_name + stage_name,
+                                     generate_secret_string=sm.SecretStringGenerator(
+                                         exclude_characters="\"'`/\\%$()[]{}<>;|",
+                                     ))
 
-        sm.Secret(self, saml_secret_name + stage_name,
-                    description="Study Tracker SAML keystore password",
-                    secret_name=saml_secret_name + stage_name,
-                  generate_secret_string=sm.SecretStringGenerator(
-                      exclude_characters="\"'`/\\%$()[]{}<>;|",
-                  ))
+        self.db_root_secret = sm.Secret(self, db_root_secret_name + stage_name,
+                                        description="Study Tracker PostgreSQL root user credentials",
+                                        secret_name=db_root_secret_name + stage_name,
+                                        generate_secret_string=sm.SecretStringGenerator(
+                                            password_length=12,
+                                            exclude_characters="\"'`/\\%$()[]{}<>;|",
+                                            include_space=False,
+                                            require_each_included_type=True,
+                                            generate_string_key="password",
+                                            secret_string_template=stack.to_json_string({
+                                                "username": "postgres",
+                                                "dbname": "postgres",
+                                                "host": "REPLACE_LATER",
+                                                "port": "5432"
+                                            })
+                                        ))
 
-        sm.Secret(self, db_root_secret_name + stage_name,
-                   description="Study Tracker PostgreSQL root user credentials",
-                   secret_name=db_root_secret_name + stage_name,
-                   generate_secret_string=sm.SecretStringGenerator(
-                       password_length=12,
-                       exclude_characters="\"'`/\\%$()[]{}<>;|",
-                       include_space=False,
-                       require_each_included_type=True,
-                       generate_string_key="password",
-                       secret_string_template=stack.to_json_string({
-                           "username": "postgres",
-                           "dbname": "postgres",
-                           "host": "REPLACE_LATER",
-                           "port": "5432"
-                       })
-                   ))
+        self.db_user_secret = sm.Secret(self, db_user_secret_name + stage_name,
+                                        description="Study Tracker PostgreSQL database user credentials",
+                                        secret_name=db_user_secret_name + stage_name,
+                                        generate_secret_string=sm.SecretStringGenerator(
+                                            password_length=12,
+                                            exclude_characters="\"'`/\\%$()[]{}<>;|",
+                                            require_each_included_type=True,
+                                            include_space=False,
+                                            generate_string_key="password",
+                                            secret_string_template=stack.to_json_string({
+                                                "username": "studytracker",
+                                                "dbname": "study-tracker",
+                                                "host": "REPLACE_LATER",
+                                                "port": "5432"
+                                            })
+                                        ))
 
-        sm.Secret(self, db_user_secret_name + stage_name,
-                   description="Study Tracker PostgreSQL database user credentials",
-                   secret_name=db_user_secret_name + stage_name,
-                   generate_secret_string=sm.SecretStringGenerator(
-                       password_length=12,
-                       exclude_characters="\"'`/\\%$()[]{}<>;|",
-                       require_each_included_type=True,
-                       include_space=False,
-                       generate_string_key="password",
-                       secret_string_template=stack.to_json_string({
-                           "username": "studytracker",
-                           "dbname": "study-tracker",
-                           "host": "REPLACE_LATER",
-                           "port": "5432"
-                       })
-                   ))
-
-        sm.Secret(self, elasticsearch_secret_name + stage_name,
-                  description="Study Tracker Elasticsearch database credentials",
-                  secret_name=elasticsearch_secret_name + stage_name,
-                  generate_secret_string=sm.SecretStringGenerator(
-                      password_length=12,
-                      exclude_characters="\"'`/\\%$()[]{}<>;|",
-                      include_space=False,
-                      generate_string_key="password",
-                      require_each_included_type=True,
-                      secret_string_template=stack.to_json_string({
-                          "username": "studytracker",
-                          "host": "REPLACE_LATER",
-                          "port": "443"
-                      })
-                  ))
+        self.elasticsearch_secret = sm.Secret(self, elasticsearch_secret_name + stage_name,
+                                              description="Study Tracker Elasticsearch database credentials",
+                                              secret_name=elasticsearch_secret_name + stage_name,
+                                              generate_secret_string=sm.SecretStringGenerator(
+                                                  password_length=12,
+                                                  exclude_characters="\"'`/\\%$()[]{}<>;|",
+                                                  include_space=False,
+                                                  generate_string_key="password",
+                                                  require_each_included_type=True,
+                                                  secret_string_template=stack.to_json_string({
+                                                      "username": "studytracker",
+                                                      "host": "REPLACE_LATER",
+                                                      "port": "443"
+                                                  })
+                                              ))
 
 
 class SecretUtils:

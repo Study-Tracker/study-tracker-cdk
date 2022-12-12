@@ -10,11 +10,20 @@ ST_HOST=${ST_PRIVATE_IP}
 # User defined
 echo "Checking environment properties..."
 
+# Secrets
+if [ -z ${APPLICATION_SECRET_NAME+x} ]; then echo "APPLICATION_SECRET_NAME must be set with a valid secret ID"; exit; fi
+if [ -z ${ELASTICSEARCH_SECRET_NAME+x} ]; then echo "ELASTICSEARCH_SECRET_NAME must be set with a valid secret ID"; exit; fi
+if [ -z ${DB_ROOT_SECRET_NAME+x} ]; then echo "DB_ROOT_SECRET_NAME must be set with a valid secret ID"; exit; fi
+if [ -z ${DB_USER_SECRET_NAME+x} ]; then echo "DB_USER_SECRET_NAME must be set with a valid secret ID"; exit; fi
+if [ -z ${SSL_SECRET_NAME+x} ]; then echo "SSL_SECRET_NAME must be set with a valid secret ID"; exit; fi
+if [ -z ${SAML_SECRET_NAME+x} ]; then echo "SAML_SECRET_NAME must be set with a valid secret ID"; exit; fi
+
 # App
 if [ -z ${ST_VERSION+x} ]; then echo "ST_VERSION must be set with a valid Study Tracker version"; exit; fi
 if [ -z ${ST_ADMIN_EMAIL+x} ]; then echo "ST_ADMIN_EMAIL must be set with a valid email"; exit; fi
 if [ -z ${ST_ADMIN_PASSWORD+x} ]; then echo "ST_ADMIN_PASSWORD must be set with a valid password"; exit; fi
-if [ -z ${ST_APP_SECRET+x} ]; then echo "ST_APP_SECRET must be set with a valid secret"; exit; fi
+#if [ -z ${ST_APP_SECRET+x} ]; then echo "ST_APP_SECRET must be set with a valid secret"; exit; fi
+
 
 # AWS
 EVENTBRIDGE_BUS_NAME=${EVENTBRIDGE_BUS_NAME}
@@ -24,28 +33,10 @@ if [ -z ${JDK_VERSION+x} ]; then echo "JDK_VERSION must be set with a valid JDK 
 
 # PostgreSQL database
 if [ -z ${DB_HOST+x} ]; then echo "DB_HOST must be set with a valid PostgreSQL host name"; exit; fi
-if [ -z ${DB_ROOT_PASSWORD+x} ]; then echo "DB_ROOT_PASSWORD must be set with a valid PostgreSQL root user password"; exit; fi
-if [ -z ${DB_PASSWORD+x} ]; then echo "DB_PASSWORD must be set with a valid PostgreSQL database user password"; exit; fi
-
-DB_PORT="${DB_PORT:=5432}"
-DB_ROOT_USER="${DB_ROOT_USER:=postgres}"
-DB_ROOT_SCHEMA="${DB_ROOT_SCHEMA:=postgres}"
-DB_SCHEMA="${DB_SCHEMA:=study-tracker}"
-DB_USER="${DB_USER:=studytracker}"
 
 STORAGE_MODE="local"
 if [ -z ${EGNYTE_TENANT_NAME+x} ]; then STORAGE_MODE="egnyte"; fi
 
-# SSL
-if [ -z ${SSL_KEYSTORE_PASSWORD+x} ]; then echo "SSL_KEYSTORE_PASSWORD must be set with a valid SSL keystore password"; exit; fi
-SSL_KEYSTORE_FILENAME="${SSL_KEYSTORE_FILENAME:=stssl.p12}"
-SSL_KEYSTORE_ALIAS="${SSL_KEYSTORE_ALIAS:=stsslstore}"
-
-# SAML
-if [ -z ${SAML_KEYSTORE_PASSWORD+x} ]; then echo "SAML_KEYSTORE_PASSWORD must be set with a valid SAML keystore password"; exit; fi
-SAML_KEYSTORE_FILENAME="${SAML_KEYSTORE_FILENAME:=saml-keystore.jks}"
-SAML_KEYSTORE_ALIAS="${SAML_KEYSTORE_ALIAS:=stsaml}"
-#SAML_KEYSTORE_PASSWORD=
 
 ## Dependency installation
 export USER_HOME=/home/${USER:=ubuntu}
@@ -59,6 +50,7 @@ sudo apt-get install -y maven
 sudo apt-get install -y git
 sudo apt-get install -y postgresql-client
 sudo apt-get install -y unzip
+sudo apt-get install -y jq
 
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
@@ -72,6 +64,47 @@ cd "${ST_HOME}" || exit
 if [ "${ST_VERSION}" != "latest" ]; then
     git checkout tags/"${ST_VERSION}"
 fi
+
+
+## Secrets
+
+# Database
+DB_PORT=$(aws secretsmanager get-secret-value --secret-id "${DB_ROOT_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.port')
+DB_ROOT_USER=$(aws secretsmanager get-secret-value --secret-id "${DB_ROOT_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
+DB_ROOT_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${DB_ROOT_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
+DB_SCHEMA=$(aws secretsmanager get-secret-value --secret-id "${DB_USER_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.dbname')
+DB_USER=$(aws secretsmanager get-secret-value --secret-id "${DB_USER_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
+DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${DB_USER_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
+DB_PORT="${DB_PORT:=5432}"
+DB_ROOT_USER="${DB_ROOT_USER:=postgres}"
+DB_ROOT_SCHEMA="${DB_ROOT_SCHEMA:=postgres}"
+DB_SCHEMA="${DB_SCHEMA:=study-tracker}"
+DB_USER="${DB_USER:=studytracker}"
+if [ -z ${DB_ROOT_PASSWORD+x} ]; then echo "DB_ROOT_PASSWORD must be set with a valid PostgreSQL root user password"; exit; fi
+if [ -z ${DB_PASSWORD+x} ]; then echo "DB_PASSWORD must be set with a valid PostgreSQL database user password"; exit; fi
+if [ -z ${DB_HOST+x} ]; then echo "DB_HOST must be set with a valid host name"; exit; fi
+
+# Elasticsearch
+ELASTICSEARCH_PORT=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.port')
+ELASTICSEARCH_USERNAME=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
+ELASTICSEARCH_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
+ELASTICSEARCH_PORT="${ELASTICSEARCH_PORT:=443}"
+if [ -z ${ELASTICSEARCH_HOST+x} ]; then echo "ELASTICSEARCH_HOST must be set with a valid host name"; exit; fi
+ELASTICSEARCH_USE_SSL=false
+if [ "${ELASTICSEARCH_PORT}" = "443" ]; then ELASTICSEARCH_USE_SSL=true; fi;
+
+# App
+ST_APP_SECRET=$(aws secretsmanager get-secret-value --secret-id "${APPLICATION_SECRET_NAME}" | jq --raw-output '.SecretString')
+
+# SSL
+SSL_KEYSTORE_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${SSL_SECRET_NAME}" | jq --raw-output '.SecretString')
+SSL_KEYSTORE_FILENAME="${SSL_KEYSTORE_FILENAME:=stssl.p12}"
+SSL_KEYSTORE_ALIAS="${SSL_KEYSTORE_ALIAS:=stsslstore}"
+
+# SAML
+SAML_KEYSTORE_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${SAML_SECRET_NAME}" | jq --raw-output '.SecretString')
+SAML_KEYSTORE_FILENAME="${SAML_KEYSTORE_FILENAME:=saml-keystore.jks}"
+SAML_KEYSTORE_ALIAS="${SAML_KEYSTORE_ALIAS:=stsaml}"
 
 
 ## Database setup
@@ -96,7 +129,7 @@ flyway.url=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_SCHEMA}
 EOF
 
 cd "${ST_HOME}"/web || exit
-mvn -Dflyway.configFiles=flyway.conf flyway:clean
+mvn -Dflyway.configFiles=flyway.conf -Dflyway.cleanDisabled=false flyway:clean
 mvn -Dflyway.configFiles=flyway.conf flyway:migrate
 
 
@@ -277,7 +310,7 @@ elasticsearch.host=${ELASTICSEARCH_HOST}
 elasticsearch.port=${ELASTICSEARCH_PORT}
 elasticsearch.username=${ELASTICSEARCH_USERNAME}
 elasticsearch.password=${ELASTICSEARCH_PASSWORD}
-elasticsearch.use-ssl=true
+elasticsearch.use-ssl=${ELASTICSEARCH_USE_SSL}
 
 
 ### Studies ###

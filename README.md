@@ -3,11 +3,19 @@
 This is an AWS CDK package for deploying Study Tracker with all required services configured via CloudFormation. This 
 includes:
 
-- EC2 instance for running the Study Tracker web application.
-- PostgreSQL database in RDS.
-- ElasticSearch single-node cluster for power search.
+- EC2 instance for running the Study Tracker web application
+- PostgreSQL database in RDS
+- ElasticSearch single-node cluster for power search
 - EventBridge bus for publishing application events
 - An S3 bucket for application storage
+
+A few things this script will *not* provision for you, which you should create ahead of time:
+
+- A VPC and subnets for hosting the application and databases
+- An EC2 SSH keypair for connecting to your instance
+- An email server and account that supports SMTP
+- An Egnyte tenant with a registered API application and key
+- A Benchling tenant with registered App and credentials
 
 ## Deploying the stack
 

@@ -3,12 +3,12 @@
 set -e -x
 
 # Parse input arguments
-export PRODUCTION_MODE=0
+export PRODUCTION_MODE=false
 while [[ $# -gt 0 ]]; do
   key="$1"
   case $key in
     -p|--production)
-      export PRODUCTION_MODE=1
+      export PRODUCTION_MODE=true
       shift
       ;;
     -h|--help)
@@ -31,8 +31,6 @@ if [[ -z "$ST_ENV" ]]; then
   exit 1
 fi
 
-# Import varaibles
-#export ST_ENV=$1
 echo "Deploying Study Tracker to environment $ST_ENV"
 
 # Test that environment file exists
@@ -43,7 +41,7 @@ fi
 
 # Load the environment variables
 source configs/default_variables.sh
-if [ $PRODUCTION_MODE -eq 1 ]; then
+if [ "$PRODUCTION_MODE" = true ]; then
     echo "Running in production mode"
     source configs/production_defaults.sh
 else
@@ -53,5 +51,6 @@ fi
 source configs/${ST_ENV}.env
 
 # Run the CDK scripts
-cdk deploy --app "python secrets_app.py" --all --require-approval never
-cdk deploy --app "python study_tracker_app.py" --all --require-approval never
+cdk deploy --app "python app.py" --all --require-approval never
+#cdk deploy --app "python secrets_app.py" --all --require-approval never
+#cdk deploy --app "python study_tracker_app.py" --all --require-approval never
