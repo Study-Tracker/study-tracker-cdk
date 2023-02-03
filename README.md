@@ -3,19 +3,19 @@
 This is an AWS CDK package for deploying Study Tracker with all required services configured via CloudFormation. This 
 includes:
 
-- EC2 instance for running the Study Tracker web application
-- PostgreSQL database in RDS
-- ElasticSearch single-node cluster for power search
-- EventBridge bus for publishing application events
-- An S3 bucket for application storage
+- EC2 instance for running the Study Tracker web application.
+- PostgreSQL database in RDS.
+- ElasticSearch single-node cluster for power search.
+- EventBridge bus for publishing application events.
+- An S3 bucket for application storage.
 
 A few things this script will *not* provision for you, which you should create ahead of time:
 
-- A VPC and subnets for hosting the application and databases
-- An EC2 SSH keypair for connecting to your instance
-- An email server and account that supports SMTP
-- An Egnyte tenant with a registered API application and key
-- A Benchling tenant with registered App and credentials
+- A VPC and subnets for hosting the application and databases. It is recommended to use private subnets for your application and databases, and public subnets for a load balancer (not provided) if you plan on making your instance accessible to the public internet. 
+- An EC2 SSH keypair for connecting to your instance.
+- An email server and account that supports SMTP.
+- An Egnyte tenant with a registered API application and key.
+- A Benchling tenant with registered App and credentials.
 
 ## Deploying the stack
 
@@ -37,79 +37,10 @@ below.
    sh deploy.sh development
     ```
    
-   By default, the stack will be deployed in 'development' mode. This will utilize smaller/cheaper instance types and disable some protections. To deploy the stack in 'production' mode using an environment file named `production.env`, run:
+   By default, the stack will be deployed in 'development' mode. This will utilize smaller/cheaper instance types and disable some protections. To deploy the stack in 'production' mode using an environment file named `production.env`, run the script with the `-p` flag:
 
    ```bash
    sh deploy.sh -p production
    ```
-
-
-## CDK Docs
-
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
-
-To manually create a virtualenv on MacOS and Linux:
-
-```
-$ python3 -m venv .venv
-```
-
-After the init process completes and the virtualenv is created, you can use the following
-step to activate your virtualenv.
-
-```
-$ source .venv/bin/activate
-```
-
-If you are a Windows platform, you would activate the virtualenv like this:
-
-```
-% .venv\Scripts\activate.bat
-```
-
-Once the virtualenv is activated, you can install the required dependencies.
-
-```
-$ pip install -r requirements.txt
-```
-
-Install AWS CDK if you do not already have it available.
-
-```bash
-npm install -g aws-cdk
-```
-
-At this point you can now synthesize the CloudFormation template for this code.
-
-```
-$ cdk synth
-```
-
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
-
-To deploy the stack to the current default AWS environment for your CLI, use the following command:
-
-```bash
-cdk deploy StudyTrackerCdkStack --parameters AdminEmail=admin@host.com --parameters AdminPassword=mypassword
-```
-
-Once the stack deployment completes, you can SSH to the created EC2 server and check that the application installation completed successfully. Logs will be outputted to `/var/log/cloud-init-output.log`
-
-## Useful commands
-
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
-
-Enjoy!
+   
+**Note:** The name of the environment file is not important, but the name of the environment itself is. The environment name is used to create the name of the stack, and must be unique across all AWS accounts. For example, if you have a `development.env` file and a `production.env` file, you can deploy the stack in development mode with the command `sh deploy.sh development`, and in production mode with the command `sh deploy.sh -p production`.
