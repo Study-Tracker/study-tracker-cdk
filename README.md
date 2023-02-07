@@ -44,3 +44,30 @@ below.
    ```
    
 **Note:** The name of the environment file is not important, but the name of the environment itself is. The environment name is used to create the name of the stack, and must be unique across all AWS accounts. For example, if you have a `development.env` file and a `production.env` file, you can deploy the stack in development mode with the command `sh deploy.sh development`, and in production mode with the command `sh deploy.sh -p production`.
+
+## After deployment
+
+It takes roughly 15 minutes for the stack to deploy, after which it will take another 10 minutes or so for the EC2 instance to boot and the application to be installed. The CDK script will print the private IP address of the EC2 instance, as well as host names of the RDS and OpensearchService instances, like so:
+
+```bash
+Outputs:
+study-tracker-application-stack-development.DatabaseHost = study-tracker-rds-postgres-development.xxxxxxxx.us-east-1.rds.amazonaws.com
+study-tracker-application-stack-development.EC2privateIP = 11.22.222.222
+study-tracker-application-stack-development.ElasticSearchHost = vpc-study-tracker-search-xxxxxxxx.us-east-1.es.amazonaws.com
+```
+
+Assuming you have VPN access to your VPC, you can connect to the EC2 instance via SSH using the private IP address and the keypair you specified in the `.env` file. 
+
+```bash
+ssh -i ~/.ssh/my-keypair.pem ubuntu@11.22.222.222
+```
+
+Once connected, you can run the following commands to check the status of the application:
+
+```bash
+sudo systemctl status study-tracker
+more /var/log/cloud-init-output.log
+more /opt/study-tracker/logs/study-tracker.log
+```
+
+If everything launched correctly, you should be able to reach your Study Tracker instance at the public IP address of the EC2 instance. If you are using a load balancer, you can reach the instance at the DNS name of the load balancer.

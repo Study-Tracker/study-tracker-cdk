@@ -52,5 +52,3 @@ source configs/${ST_ENV}.env
 
 # Run the CDK scripts
 cdk deploy --app "python app.py" --all --require-approval never
-#cdk deploy --app "python secrets_app.py" --all --require-approval never
-#cdk deploy --app "python study_tracker_app.py" --all --require-approval never

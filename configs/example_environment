@@ -2,6 +2,7 @@
 
 ### Study Tracker dependencies
 #export ST_VERSION="0.7.2"
+#export ST_VERSION="0.8.0"
 export ST_VERSION="latest"
 
 ### Study Tracker user configuration
@@ -30,7 +31,7 @@ export BENCHLING_CLIENT_SECRET="xxxxxx"
 
 ### AWS Environment
 # Provide the VPC ID, account #, and region for your deployment. Provide subnet IDs for your EC2 and
-# RDS service deployments.
+# RDS service deployments. These should be private subnets.
 # Required
 export VPC_ID="vpc-xxxxx"
 export AWS_ACCOUNT_ID="1234567890"
@@ -42,7 +43,25 @@ export SUBNET_IDS="subnet-xxxxxxx:us-east-1a,subnet-xxxxxxx:us-east-1b"
 # Required
 export EC2_SSH_KEY_NAME="MY_KEY"
 
+# If you'd like to attach any additional security groups to your EC2 instance, provide their IDs here.
+# Optional
+export EC2_SECURITY_GROUP_IDS="sg-xxxxxxx,sg-xxxxxxx"
+
 ### Elasticsearch
 # Provide the subnet ID to be used to deploy your Elasticsearch instance
 # Required
 export ES_SUBNET_ID="subnet-xxxxxxxx"
+
+### S3
+# Provide the name of the S3 bucket that will be used to store Study Tracker data. If not provided,
+# a new bucket will be created with a generic name.
+# Optional
+export S3_BUCKET_NAME="my-study-tracker-bucket"
+
+### Email
+# Provide SMTP connection information so that Study Tracker can send account activation emails to users.
+# Required
+export SMTP_HOST="smtp.office365.com"
+export SMTP_PORT="587"
+export SMTP_USER="username@myorg.onmicrosoft.com"
+export SMTP_PASSWORD="xxxxxxx"

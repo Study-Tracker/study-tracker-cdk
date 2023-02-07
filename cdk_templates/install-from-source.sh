@@ -1,6 +1,9 @@
 ### Installation script for fresh Study Tracker EC2 instance.
 ### This script build the application from source.
 
+# Run as the default ubuntu user
+sudo su - ubuntu
+
 ## Parameters
 
 # Predefined
@@ -30,9 +33,6 @@ EVENTBRIDGE_BUS_NAME=${EVENTBRIDGE_BUS_NAME}
 
 # Java
 if [ -z ${JDK_VERSION+x} ]; then echo "JDK_VERSION must be set with a valid JDK version"; exit; fi
-
-# PostgreSQL database
-if [ -z ${DB_HOST+x} ]; then echo "DB_HOST must be set with a valid PostgreSQL host name"; exit; fi
 
 STORAGE_MODE="local"
 if [ -z ${EGNYTE_TENANT_NAME+x} ]; then STORAGE_MODE="egnyte"; fi
@@ -69,6 +69,7 @@ fi
 ## Secrets
 
 # Database
+DB_HOST=$(aws rds describe-db-instances --db-instance-identifier "${DB_INSTANCE_NAME}" | jq --raw-output '.DBInstances[0].Endpoint.Address')
 DB_PORT=$(aws secretsmanager get-secret-value --secret-id "${DB_ROOT_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.port')
 DB_ROOT_USER=$(aws secretsmanager get-secret-value --secret-id "${DB_ROOT_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
 DB_ROOT_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${DB_ROOT_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
@@ -85,6 +86,7 @@ if [ -z ${DB_PASSWORD+x} ]; then echo "DB_PASSWORD must be set with a valid Post
 if [ -z ${DB_HOST+x} ]; then echo "DB_HOST must be set with a valid host name"; exit; fi
 
 # Elasticsearch
+ELASTICSEARCH_HOST=$(aws es describe-elasticsearch-domain --domain-name "${ELASTICSEARCH_INSTANCE_NAME}" | jq --raw-output '.DomainStatus.Endpoints.vpc')
 ELASTICSEARCH_PORT=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.port')
 ELASTICSEARCH_USERNAME=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
 ELASTICSEARCH_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
@@ -109,7 +111,7 @@ SAML_KEYSTORE_ALIAS="${SAML_KEYSTORE_ALIAS:=stsaml}"
 
 ## Database setup
 
-echo "Creating database..."
+echo "Creating database: ${DB_HOST}:${DB_PORT}/${DB_SCHEMA} ..."
 
 # Create database and user
 export PGPASSWORD="${DB_ROOT_PASSWORD}"
@@ -134,7 +136,7 @@ mvn -Dflyway.configFiles=flyway.conf flyway:migrate
 
 
 ## Create the run directory
-echo "Creating the run directory..."
+echo "Creating the run directory: ${RUN_DIR} ..."
 sudo mkdir ${RUN_DIR}
 sudo chown ubuntu:ubuntu ${RUN_DIR}
 mkdir ${RUN_DIR}/data
@@ -162,7 +164,7 @@ cat <<EOF > application.properties
 # links to your application in emails and other notifications.
 # Eg. localhost or mywebsite.com
 
-application.host-name=${ST_HOST}
+application.host-name=localhost
 
 # Required
 # Character sequence used for seeding encryption keys. This should ideally be a long, random string
@@ -202,11 +204,11 @@ db.name=${DB_SCHEMA}
 # key for the account you are running Study Tracker in.
 
 aws.region=${AWS_REGION}
-aws.access-key-id=
-aws.secret-access-key=
+# aws.access-key-id=
+# aws.secret-access-key=
 
 # If you would like to register some S3 buckets for file storage, list them as comma-separated values here.
-aws.s3.buckets=
+aws.s3.buckets=${S3_BUCKET_NAME}
 
 
 ### Events ###
@@ -245,12 +247,12 @@ benchling.api.client-id=${BENCHLING_CLIENT_ID}
 benchling.api.client-secret=${BENCHLING_CLIENT_SECRET}
 
 # Deprecated parameters.
-#benchling.api.token=
-#benchling.api.username=
-#benchling.api.password=
-#benchling.api.root-url=
-#benchling.api.root-entity=
-#benchling.api.root-folder-url=
+# benchling.api.token=
+# benchling.api.username=
+# benchling.api.password=
+# benchling.api.root-url=
+# benchling.api.root-entity=
+# benchling.api.root-folder-url=
 
 
 ### File Storage ###
@@ -330,22 +332,22 @@ study.assay-code-min-digits=3
 # Optional
 # If SSL is enabled, set the port to 8443 or 443
 
-#server.port=443
-#server.ssl.enabled=true
-#server.ssl.key-store-type=PKCS12
-#server.ssl.key-alias=${SSL_KEYSTORE_ALIAS}
-#server.ssl.key-store=${RUN_DIR}/${SSL_KEYSTORE_FILENAME}
-#server.ssl.key-store-password=${SSL_KEYSTORE_PASSWORD}
+server.port=443
+server.ssl.enabled=true
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=${SSL_KEYSTORE_ALIAS}
+server.ssl.key-store=${RUN_DIR}/${SSL_KEYSTORE_FILENAME}
+server.ssl.key-store-password=${SSL_KEYSTORE_PASSWORD}
 
 ## Okta
-#sso.url=${OKTA_SSO_URL}
-#security.sso=okta-saml
-#saml.audience=${OKTA_AUDIENCE_URL}
-#saml.idp=${OKTA_IDP_URL}
-#saml.metadata-url=${OKTA_METADATA_URL}
-#saml.keystore.location=file:${RUN_DIR}/${SAML_KEYSTORE_FILENAME}
-#saml.keystore.alias=${SAML_KEYSTORE_ALIAS}
-#saml.keystore.password=${SAML_KEYSTORE_PASSWORD}
+# sso.url=${OKTA_SSO_URL}
+# security.sso=okta-saml
+# saml.audience=${OKTA_AUDIENCE_URL}
+# saml.idp=${OKTA_IDP_URL}
+# saml.metadata-url=${OKTA_METADATA_URL}
+# saml.keystore.location=file:${RUN_DIR}/${SAML_KEYSTORE_FILENAME}
+# saml.keystore.alias=${SAML_KEYSTORE_ALIAS}
+# saml.keystore.password=${SAML_KEYSTORE_PASSWORD}
 EOF
 
 
