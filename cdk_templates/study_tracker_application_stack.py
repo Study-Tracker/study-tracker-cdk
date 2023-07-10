@@ -38,7 +38,7 @@ class StudyTrackerCdkStack(Stack):
         ### Secrets
         stack = StudyTrackerCdkStack.of(self)
 
-        application_secret = sm.Secret(self, "StudyTrackerApplicationSecret" + stage_name,
+        application_secret = sm.Secret(self, "ApplicationSecret",
                                             description="Encryption key for Study Tracker database",
                                             secret_name=application_secret_name + stage_name,
                                             generate_secret_string=sm.SecretStringGenerator(
@@ -46,21 +46,21 @@ class StudyTrackerCdkStack(Stack):
                                                 exclude_characters="\"'`/\\%$()[]{}<>;|!",
                                             ))
 
-        ssl_secret = sm.Secret(self, "StudyTrackerSSLSecret" + stage_name,
+        ssl_secret = sm.Secret(self, "SSLSecret",
                                     description="Study Tracker SSL keystore password",
                                     secret_name=ssl_secret_name + stage_name,
                                     generate_secret_string=sm.SecretStringGenerator(
                                         exclude_characters="\"'`/\\%$()[]{}<>;|!",
                                     ))
 
-        saml_secret = sm.Secret(self, "StudyTrackerSAMLSecret" + stage_name,
+        saml_secret = sm.Secret(self, "SAMLSecret",
                                      description="Study Tracker SAML keystore password",
                                      secret_name=saml_secret_name + stage_name,
                                      generate_secret_string=sm.SecretStringGenerator(
                                          exclude_characters="\"'`/\\%$()[]{}<>;|!",
                                      ))
 
-        db_root_secret = sm.Secret(self, "StudyTrackerDBRootSecret" + stage_name,
+        db_root_secret = sm.Secret(self, "DBRootSecret",
                                         description="Study Tracker PostgreSQL root user credentials",
                                         secret_name=db_root_secret_name + stage_name,
                                         generate_secret_string=sm.SecretStringGenerator(
@@ -77,7 +77,7 @@ class StudyTrackerCdkStack(Stack):
                                             })
                                         ))
 
-        db_user_secret = sm.Secret(self, "StudyTrackerDBUserSecret" + stage_name,
+        db_user_secret = sm.Secret(self, "DBUserSecret",
                                         description="Study Tracker PostgreSQL database user credentials",
                                         secret_name=db_user_secret_name + stage_name,
                                         generate_secret_string=sm.SecretStringGenerator(
@@ -94,21 +94,21 @@ class StudyTrackerCdkStack(Stack):
                                             })
                                         ))
 
-        elasticsearch_secret = sm.Secret(self, "StudyTrackerElasticSearchSecret" + stage_name,
-                                              description="Study Tracker Elasticsearch database credentials",
-                                              secret_name=elasticsearch_secret_name + stage_name,
-                                              generate_secret_string=sm.SecretStringGenerator(
-                                                  password_length=24,
-                                                  exclude_punctuation=True,
-                                                  include_space=False,
-                                                  generate_string_key="password",
-                                                  require_each_included_type=True,
-                                                  secret_string_template=stack.to_json_string({
-                                                      "username": "studytracker",
-                                                      "host": "REPLACE_LATER",
-                                                      "port": "443"
-                                                  })
-                                              ))
+        # elasticsearch_secret = sm.Secret(self, "StudyTrackerElasticSearchSecret" + stage_name,
+        #                                       description="Study Tracker Elasticsearch database credentials",
+        #                                       secret_name=elasticsearch_secret_name + stage_name,
+        #                                       generate_secret_string=sm.SecretStringGenerator(
+        #                                           password_length=24,
+        #                                           exclude_punctuation=True,
+        #                                           include_space=False,
+        #                                           generate_string_key="password",
+        #                                           require_each_included_type=True,
+        #                                           secret_string_template=stack.to_json_string({
+        #                                               "username": "studytracker",
+        #                                               "host": "REPLACE_LATER",
+        #                                               "port": "443"
+        #                                           })
+        #                                       ))
 
 
         ### VPC
@@ -122,20 +122,18 @@ class StudyTrackerCdkStack(Stack):
 
 
         ### S3
-        s3_bucket_name = os.environ.get("S3_BUCKET_NAME", "study-tracker-cdk-s3-bucket-" + stage_name)
+        s3_bucket_name = os.environ.get("S3_BUCKET_NAME", "study-tracker-storage-" + stage_name)
         bucket = s3.Bucket(
-            self, "StudyTrackerS3Bucket" + stage_name,
+            self, "S3Bucket",
             bucket_name=s3_bucket_name,
             versioned=True,
-            removal_policy=aws_cdk.RemovalPolicy.DESTROY,
-            auto_delete_objects=True
+            removal_policy=aws_cdk.RemovalPolicy.DESTROY
         )
 
 
         ### RDS
-        rds_instance_name = "study-tracker-rds-instance-" + stage_name
+        rds_instance_name = "study-tracker-database-" + stage_name
         rds_db_name = "StudyTrackerRDSDatabase" + stage_name
-        postgressql_version = rds.PostgresEngineVersion.VER_13_6
         db_instance_type = ec2.InstanceType(os.environ.get("RDS_INSTANCE_TYPE", "t3.small"))
 
         rds_security_group = ec2.SecurityGroup(self, "PostgresDatabaseSecurityGroup", vpc=vpc, allow_all_outbound=True)
@@ -145,11 +143,10 @@ class StudyTrackerCdkStack(Stack):
         rds_security_group.add_ingress_rule(ec2.Peer.any_ipv6(), ec2.Port.tcp(443))
 
         rds_database = rds.DatabaseInstance(
-            self,
-            "StudyTrackerRDSInstance" + stage_name,
+            self, "RDSInstance",
             database_name=rds_db_name,
             instance_identifier=rds_instance_name,
-            engine=rds.DatabaseInstanceEngine.postgres(version=postgressql_version),
+            engine=rds.DatabaseInstanceEngine.postgres(version=rds.PostgresEngineVersion.VER_14),
             instance_type=db_instance_type,
             vpc_subnets=ec2.SubnetSelection(subnets=subnet_list),
             security_groups=[rds_security_group],
@@ -157,7 +154,7 @@ class StudyTrackerCdkStack(Stack):
             port=5432,
             credentials=rds.Credentials.from_secret(db_root_secret),
             removal_policy=aws_cdk.RemovalPolicy.DESTROY,
-            # deletion_protection=production_mode,
+            deletion_protection=False,  # production_mode,
             multi_az=False,  # true for redundancy
             storage_type=rds.StorageType.GP2,  # io1 for high performance
             allocated_storage=50,
@@ -166,10 +163,11 @@ class StudyTrackerCdkStack(Stack):
 
 
         ### ElasticSearch
-        es_version = es.EngineVersion.ELASTICSEARCH_7_10
         es_name = "st-search-" + stage_name
 
-        es_security_group = ec2.SecurityGroup(self, "ElasticSearchSecurityGroup", vpc=vpc, allow_all_outbound=True)
+        es_security_group = ec2.SecurityGroup(self, "ElasticSearchSecurityGroup",
+                                              vpc=vpc,
+                                              allow_all_outbound=True)
         es_security_group.add_ingress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(9200))
         es_security_group.add_ingress_rule(ec2.Peer.any_ipv6(), ec2.Port.tcp(9200))
         es_security_group.add_ingress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(443))
@@ -179,21 +177,20 @@ class StudyTrackerCdkStack(Stack):
 
         es_domain = es.Domain(
             self,
-            "StudyTrackerElasticSearch" + stage_name,
+            "ElasticSearchDomain",
             domain_name=es_name,
             vpc=vpc,
             vpc_subnets=[ec2.SubnetSelection(subnets=[subnet_list[0]])],
             security_groups=[es_security_group],
-            version=es_version,
+            version=es.EngineVersion.ELASTICSEARCH_7_10,
             capacity=es.CapacityConfig(
                 master_nodes=0,
                 data_nodes=1,
                 data_node_instance_type=os.environ.get("ES_INSTANCE_TYPE", "t3.small.search")
             ),
-            ebs=es.EbsOptions(volume_size=20),
+            ebs=es.EbsOptions(volume_size=30),
             fine_grained_access_control=es.AdvancedSecurityOptions(
-                master_user_name="studytracker",
-                master_user_password=elasticsearch_secret.secret_value
+                master_user_name="studytracker"
             ),
             node_to_node_encryption=True,
             enforce_https=True,
@@ -207,11 +204,17 @@ class StudyTrackerCdkStack(Stack):
             resources=[es_domain.domain_arn, es_domain.domain_arn + "/*"]
         ))
 
+        elasticsearch_secret = sm.Secret(self, "StudyTrackerElasticSearchSecret" + stage_name,
+                                         description="Study Tracker Elasticsearch database credentials",
+                                         secret_name=elasticsearch_secret_name + stage_name,
+                                         secret_string_value=es_domain.master_user_password
+                                         )
+
 
         ### EventBridge
 
-        event_bus_name = "study-tracker-event-bus-" + stage_name
-        event_bus = events.EventBus(self, "StudyTrackerEventBridge" + stage_name,
+        event_bus_name = "study-tracker-events-" + stage_name
+        event_bus = events.EventBus(self, "EventBridgeBus",
                                     event_bus_name=event_bus_name)
 
 
@@ -279,14 +282,15 @@ class StudyTrackerCdkStack(Stack):
 
         ec2_instance_user_data.add_commands("export ELASTICSEARCH_INSTANCE_NAME=" + es_name)
         ec2_instance_user_data.add_commands("export ELASTICSEARCH_PORT=443")
+        ec2_instance_user_data.add_commands("export ELASTICSEARCH_USERNAME=studytracker")
 
         ec2_instance_user_data.add_commands("export EVENTBRIDGE_BUS_NAME=" + event_bus_name)
 
         ec2_instance_user_data.add_commands("export S3_BUCKET_NAME=" + s3_bucket_name)
 
-        ec2_instance_user_data.add_commands("export EGNYTE_TENANT_NAME=" + os.environ.get("EGNYTE_TENANT_NAME"))
-        ec2_instance_user_data.add_commands("export EGNYTE_API_TOKEN=" + os.environ.get("EGNYTE_API_TOKEN"))
-        ec2_instance_user_data.add_commands("export EGNYTE_ROOT_FOLDER=" + os.environ.get("EGNYTE_ROOT_FOLDER"))
+        # ec2_instance_user_data.add_commands("export EGNYTE_TENANT_NAME=" + os.environ.get("EGNYTE_TENANT_NAME"))
+        # ec2_instance_user_data.add_commands("export EGNYTE_API_TOKEN=" + os.environ.get("EGNYTE_API_TOKEN"))
+        # ec2_instance_user_data.add_commands("export EGNYTE_ROOT_FOLDER=" + os.environ.get("EGNYTE_ROOT_FOLDER"))
 
         ec2_instance_user_data.add_commands("export BENCHLING_TENANT_NAME=" + os.environ.get("BENCHLING_TENANT_NAME"))
         ec2_instance_user_data.add_commands("export BENCHLING_CLIENT_ID=" + os.environ.get("BENCHLING_CLIENT_ID"))
@@ -310,7 +314,7 @@ class StudyTrackerCdkStack(Stack):
         ec2_instance_name = "study-tracker-ec2-instance-" + stage_name
         ec2_server = ec2.Instance(
             self,
-            "StudyTrackerEC2Instance" + stage_name,
+            "EC2Instance",
             instance_name=ec2_instance_name,
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(subnets=subnet_list),
@@ -330,12 +334,33 @@ class StudyTrackerCdkStack(Stack):
         ec2_server.apply_removal_policy(aws_cdk.RemovalPolicy.DESTROY)
         ec2_server.role.attach_inline_policy(iam.Policy(
             self,
-            "StudyTrackerEC2InstanceInlinePolicy" + stage_name,
+            "EC2InstanceInlinePolicy",
             policy_name="study-tracker-ec2-instance-inline-policy-" + stage_name,
             statements=[
                 iam.PolicyStatement(
-                    actions=["rds:DescribeDBInstances", "es:DescribeElasticsearchDomain"],
+                    actions=[
+                        "rds:DescribeDBInstances",
+                        "es:DescribeElasticsearchDomain",
+                        "s3:ListAllMyBuckets"
+                    ],
                     resources=["*"]
+                ),
+                iam.PolicyStatement(
+                    actions=[
+                        "s3:ListBucketVersions",
+                        "s3:ListBucket",
+                        "s3:GetBucketLocation",
+                        "s3:PutObject",
+                        "s3:GetObject",
+                        "s3:ListBucketMultipartUploads",
+                        "s3:PutBucketPublicAccessBlock",
+                        "s3:AbortMultipartUpload",
+                        "s3:DeleteObject",
+                        "s3:PutObjectAcl",
+                        "s3:GetObjectVersion",
+                        "s3:ListMultipartUploadParts"
+                    ],
+                    resources=[bucket.bucket_arn]
                 )
             ]
         ))
@@ -361,3 +386,4 @@ class StudyTrackerCdkStack(Stack):
         CfnOutput(self, "EC2-private-IP", value=ec2_server.instance_private_ip)
         CfnOutput(self, "Database-Host", value=rds_database.instance_endpoint.hostname)
         CfnOutput(self, "ElasticSearch-Host", value=es_domain.domain_endpoint)
+        CfnOutput(self, "S3-Bucket-Name", value=bucket.bucket_name)

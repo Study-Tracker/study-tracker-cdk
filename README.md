@@ -8,13 +8,13 @@ includes:
 - ElasticSearch single-node cluster for power search.
 - EventBridge bus for publishing application events.
 - An S3 bucket for application storage.
+- SecretsManager records for all generated credentials.
 
 A few things this script will *not* provision for you, which you should create ahead of time:
 
 - A VPC and subnets for hosting the application and databases. It is recommended to use private subnets for your application and databases, and public subnets for a load balancer (not provided) if you plan on making your instance accessible to the public internet. 
 - An EC2 SSH keypair for connecting to your instance.
 - An email server and account that supports SMTP.
-- An Egnyte tenant with a registered API application and key.
 - A Benchling tenant with registered App and credentials.
 
 ## Deploying the stack
@@ -71,3 +71,78 @@ more /opt/study-tracker/logs/study-tracker.log
 ```
 
 If everything launched correctly, you should be able to reach your Study Tracker instance at the public IP address of the EC2 instance. If you are using a load balancer, you can reach the instance at the DNS name of the load balancer.
+
+## Profile Configuration File Reference
+
+The following is an example configuration file you can use for reference, with brief explanation of each field:
+
+```bash
+#!/usr/bin/env bash
+
+### Study Tracker dependencies
+
+# Version of Study Tracker you would like to deploy. This can be a specific version number, or 
+# 'latest' to deploy the latest version of the `main` branch.
+#export ST_VERSION="0.9.3"
+export ST_VERSION="latest"
+
+
+### Study Tracker user configuration
+
+# The email address of the Study Tracker admin user. This user will be created in the database and 
+# will be able to log in to the application.
+export ADMIN_EMAIL="user@email.com"
+export ADMIN_PASSWORD="thisisatest"
+
+
+### AWS Environment
+
+# The ID of the VPC the stack will be deployed into
+export VPC_ID="vpc-1234567890"
+
+# The AWS account number.
+export AWS_ACCOUNT_ID="1234567890"
+
+# The region to deploy the stack into.
+export AWS_REGION="us-east-1"
+
+# The IDs of two private subnets to deploy the application into. These should be in different 
+# availability zones.
+export SUBNET_IDS="subnet-1234567890:us-east-1a,subnet-1234567890:us-east-1b"
+
+
+### EC2
+
+# Name of an existing EC2 SSH keypair to use for connecting to the instance.
+export EC2_SSH_KEY_NAME="My_keypair"
+
+# Any additional security groups you would like to attach to the EC2 instance. This should be a 
+# comma-separated list of security group IDs. It is a good idea to add your default VPC group here.
+export EC2_SECURITY_GROUP_IDS="sg-12345677890"
+
+
+### Elasticsearch
+
+# Subnet ID for the Elasticsearch instance. This should be a private subnet.
+export ES_SUBNET_ID="subnet-1234567890"
+
+
+### Email
+
+# Connection info for an SMTP server for sending emails.
+export SMTP_HOST="smtp.office365.com"
+export SMTP_PORT="587"
+export SMTP_USER="user@myorg.onmicrosoft.com"
+export SMTP_PASSWORD="password"
+
+
+### Benchling
+
+# The name of your Benchling tenant.
+export BENCHLING_TENANT_NAME="myorg"
+
+# The client ID and secret for your Benchling App. These can be found in the Benchling developer 
+# console.
+export BENCHLING_CLIENT_ID="xxxxxx"
+export BENCHLING_CLIENT_SECRET="xxxxxx"
+```

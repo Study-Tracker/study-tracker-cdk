@@ -1,24 +1,14 @@
 #!/usr/bin/env bash
 
 ### Study Tracker dependencies
-#export ST_VERSION="0.7.2"
-#export ST_VERSION="0.8.0"
-export ST_VERSION="latest"
+export ST_VERSION="0.9.3"
+#export ST_VERSION="latest"
 
 ### Study Tracker user configuration
 # This is is used to create an admin user account in Study Tracker on initialization.
 # Required
 export ADMIN_EMAIL="person@email.com"
 export ADMIN_PASSWORD="thisismypassword"
-
-### Egnyte
-# Enables integration with Egnyte. Provide your tenant name (for example, if your Egnyte URL is
-# https://myorg.egnyte.com then your tenant name will be 'myorg'. The API token can be acquired
-# by logging into your Egnyte developer portal and creating a new application integration.
-# Optional
-export EGNYTE_TENANT_NAME="example"
-export EGNYTE_API_TOKEN="xxxxxx"
-export EGNYTE_ROOT_FOLDER="Shared/StudyTracker/"
 
 ### Benchling
 # Enables integration with Benchling. Provide your tenant name (for example, if your Benchling URL is

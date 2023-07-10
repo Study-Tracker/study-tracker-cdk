@@ -35,7 +35,6 @@ EVENTBRIDGE_BUS_NAME=${EVENTBRIDGE_BUS_NAME}
 if [ -z ${JDK_VERSION+x} ]; then echo "JDK_VERSION must be set with a valid JDK version"; exit; fi
 
 STORAGE_MODE="local"
-if [ -z ${EGNYTE_TENANT_NAME+x} ]; then STORAGE_MODE="egnyte"; fi
 
 
 ## Dependency installation
@@ -87,9 +86,10 @@ if [ -z ${DB_HOST+x} ]; then echo "DB_HOST must be set with a valid host name"; 
 
 # Elasticsearch
 ELASTICSEARCH_HOST=$(aws es describe-elasticsearch-domain --domain-name "${ELASTICSEARCH_INSTANCE_NAME}" | jq --raw-output '.DomainStatus.Endpoints.vpc')
-ELASTICSEARCH_PORT=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.port')
-ELASTICSEARCH_USERNAME=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
-ELASTICSEARCH_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
+#ELASTICSEARCH_PORT=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.port')
+#ELASTICSEARCH_USERNAME=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.username')
+#ELASTICSEARCH_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString' | jq --raw-output '.password')
+ELASTICSEARCH_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${ELASTICSEARCH_SECRET_NAME}" | jq --raw-output '.SecretString')
 ELASTICSEARCH_PORT="${ELASTICSEARCH_PORT:=443}"
 if [ -z ${ELASTICSEARCH_HOST+x} ]; then echo "ELASTICSEARCH_HOST must be set with a valid host name"; exit; fi
 ELASTICSEARCH_USE_SSL=false
@@ -138,8 +138,9 @@ mvn -Dflyway.configFiles=flyway.conf flyway:migrate
 ## Create the run directory
 echo "Creating the run directory: ${RUN_DIR} ..."
 sudo mkdir ${RUN_DIR}
-sudo chown ubuntu:ubuntu ${RUN_DIR}
+sudo chown -R ubuntu:ubuntu ${RUN_DIR}
 mkdir ${RUN_DIR}/data
+mkdir ${RUN_DIR}/tmp
 mkdir ${RUN_DIR}/logs
 
 ## TLS
@@ -208,7 +209,7 @@ aws.region=${AWS_REGION}
 # aws.secret-access-key=
 
 # If you would like to register some S3 buckets for file storage, list them as comma-separated values here.
-aws.s3.buckets=${S3_BUCKET_NAME}
+# aws.s3.buckets=${S3_BUCKET_NAME}
 
 
 ### Events ###
@@ -275,7 +276,7 @@ storage.max-folder-read-depth=3
 # Local file storage
 # Sets the directory used for uploading files.
 
-storage.temp-dir=/tmp
+storage.temp-dir=${RUN_DIR}/tmp
 
 # Sets the folder in which the root program/study/assay storage folder hierarchy will be created.
 # Required if storage.mode is set to 'local'.
@@ -287,17 +288,17 @@ storage.local-dir=${RUN_DIR}/data
 
 # Required if storage.mode is set to 'egnyte'.
 
-egnyte.tenant-name=${EGNYTE_TENANT_NAME}
-egnyte.root-url=https://\${egnyte.tenant-name}.egnyte.com
-egnyte.api-token=${EGNYTE_API_TOKEN}
+#egnyte.tenant-name=${EGNYTE_TENANT_NAME}
+#egnyte.root-url=https://\${egnyte.tenant-name}.egnyte.com
+#egnyte.api-token=${EGNYTE_API_TOKEN}
 
 # Sets the folder in which the root program/study/assay storage folder hierarchy will be created.
 
-egnyte.root-path=${EGNYTE_ROOT_FOLDER}
+#egnyte.root-path=${EGNYTE_ROOT_FOLDER}
 
 # Sets the maximum number of API requests that will be made to egnyte every second.
 
-egnyte.qps=3
+#egnyte.qps=3
 
 
 ### Search ###
@@ -368,8 +369,8 @@ Description=Study Tracker
 WorkingDirectory=${RUN_DIR}
 ExecStart=/usr/bin/java -jar study-tracker.war
 Restart=always
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=file:${RUN_DIR}/logs/study-tracker-out.log
+StandardError=file:${RUN_DIR}/logs/study-tracker-error.log
 SyslogIdentifier=study-tracker
 
 [Install]
