@@ -83,8 +83,8 @@ The following is an example configuration file you can use for reference, with b
 
 # Version of Study Tracker you would like to deploy. This can be a specific version number, or 
 # 'latest' to deploy the latest version of the `main` branch.
-#export ST_VERSION="0.9.3"
-export ST_VERSION="latest"
+export ST_VERSION="v0.9.6"
+#export ST_VERSION="latest"
 
 
 ### Study Tracker user configuration

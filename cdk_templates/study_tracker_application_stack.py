@@ -113,12 +113,28 @@ class StudyTrackerCdkStack(Stack):
 
         ### VPC
         vpc = ec2.Vpc.from_lookup(self, "VPC", vpc_id=os.environ.get("VPC_ID"))
-        subnet_list = []
-        for subnet in os.environ.get("SUBNET_IDS").split(","):
+        ec2_subnet_list = []
+        for subnet in os.environ.get("EC2_SUBNET_IDS").split(","):
             bits = subnet.strip().split(":")
             subnet_id = bits[0]
             subnet_az = bits[1]
-            subnet_list.append(ec2.Subnet.from_subnet_attributes(self, subnet_id, subnet_id=subnet_id, availability_zone=subnet_az))
+            ec2_subnet_list.append(ec2.Subnet.from_subnet_attributes(self, subnet_id, subnet_id=subnet_id, availability_zone=subnet_az))
+
+        rds_subnet_list = []
+        for subnet in os.environ.get("RDS_SUBNET_IDS").split(","):
+            bits = subnet.strip().split(":")
+            subnet_id = bits[0]
+            subnet_az = bits[1]
+            rds_subnet_list.append(ec2.Subnet.from_subnet_attributes(self, subnet_id, subnet_id=subnet_id, availability_zone=subnet_az))
+
+        # es_subnet_list = []
+        # for subnet in os.environ.get("ES_SUBNET_IDS").split(","):
+        #     bits = subnet.strip().split(":")
+        #     subnet_id = bits[0]
+        #     subnet_az = bits[1]
+        #     es_subnet_list.append(ec2.Subnet.from_subnet_attributes(self, subnet_id, subnet_id=subnet_id, availability_zone=subnet_az))
+
+
 
 
         ### S3
@@ -144,11 +160,11 @@ class StudyTrackerCdkStack(Stack):
 
         rds_database = rds.DatabaseInstance(
             self, "RDSInstance",
-            database_name=rds_db_name,
+            database_name="StudyTrackerRDSDatabase",
             instance_identifier=rds_instance_name,
             engine=rds.DatabaseInstanceEngine.postgres(version=rds.PostgresEngineVersion.VER_14),
             instance_type=db_instance_type,
-            vpc_subnets=ec2.SubnetSelection(subnets=subnet_list),
+            vpc_subnets=ec2.SubnetSelection(subnets=rds_subnet_list),
             security_groups=[rds_security_group],
             vpc=vpc,
             port=5432,
@@ -180,7 +196,7 @@ class StudyTrackerCdkStack(Stack):
             "ElasticSearchDomain",
             domain_name=es_name,
             vpc=vpc,
-            vpc_subnets=[ec2.SubnetSelection(subnets=[subnet_list[0]])],
+            vpc_subnets=[ec2.SubnetSelection(subnets=[rds_subnet_list[0]])],
             security_groups=[es_security_group],
             version=es.EngineVersion.ELASTICSEARCH_7_10,
             capacity=es.CapacityConfig(
@@ -317,7 +333,7 @@ class StudyTrackerCdkStack(Stack):
             "EC2Instance",
             instance_name=ec2_instance_name,
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnets=subnet_list),
+            vpc_subnets=ec2.SubnetSelection(subnets=ec2_subnet_list),
             machine_image=ec2_machine_image,
             security_group=ec2_security_group,
             instance_type=ec2_instance_type,
